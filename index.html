@@ -114,9 +114,30 @@ async function loadStatus() {
 
         const box = document.getElementById("statusBox");
 
-        if (!data.online) { box.textContent = "🔴 Bot hors ligne"; box.className = "status-box offline"; return; }
-        if (data.maintenance) { box.textContent = "🟡 Maintenance"; box.className = "status-box maintenance"; }
-        else { box.textContent = "🟢 Bot en ligne"; box.className = "status-box online"; }
+        // BOT OFFLINE
+        if (!data.online) {
+            box.textContent = "💥 Oups, il y a un soucis !";
+            box.className = "status-box offline";
+
+            document.getElementById("gateway").textContent = "–";
+            document.getElementById("shard").textContent = "–";
+            document.getElementById("ping").textContent = "–";
+            document.getElementById("uptime").textContent = "–";
+            document.getElementById("heartbeat").textContent = "–";
+            document.getElementById("maintenance").textContent = data.maintenance ? "Oui" : "Non";
+            return;
+        }
+
+        // BOT EN MAINTENANCE
+        if (data.maintenance) {
+            box.textContent = "🟡 Maintenance";
+            box.className = "status-box maintenance";
+        } 
+        // BOT EN LIGNE
+        else {
+            box.textContent = "🟢 Bot en ligne";
+            box.className = "status-box online";
+        }
 
         document.getElementById("gateway").textContent = data.gateway_status;
         document.getElementById("shard").textContent = data.shard_id;
@@ -126,10 +147,12 @@ async function loadStatus() {
         document.getElementById("maintenance").textContent = data.maintenance ? "Oui" : "Non";
 
     } catch(e) {
-        document.getElementById("statusBox").textContent = "🔴 Impossible de contacter l'API";
-        document.getElementById("statusBox").className = "status-box offline";
+        const box = document.getElementById("statusBox");
+        box.textContent = "💥 Oups, il y a un soucis !";
+        box.className = "status-box offline";
     }
 }
+
 
 setInterval(loadStatus, 5000);
 loadStatus();
