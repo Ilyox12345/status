@@ -61,7 +61,7 @@ footer{text-align:center;padding:40px;color:#444;margin-top:80px;}
 
 <script>
 // ADMIN DISCORD — IDs autorisés
-const ADMINS = ["337868737871085578", "924263589798346762"]; // seuls eux
+const ADMINS = ["337868737871085578", "924263589798346762"];
 let userId = null;
 
 // Vérification Discord OAuth2
@@ -71,12 +71,12 @@ async function checkLogin() {
 
     if (!token) {
         document.getElementById("admin").innerHTML = `
-            <a href="https://discord.com/api/oauth2/authorize?client_id=1439239509521989745&redirect_uri=${encodeURIComponent(window.location.href)}&response_type=token&scope=identify" class="admin-btn">Se connecter avec Discord</a>
-        `;
+            <a href="https://discord.com/api/oauth2/authorize?client_id=1439239509521989745&redirect_uri=${encodeURIComponent(window.location.href)}&response_type=token&scope=identify" class="admin-btn">
+                Se connecter avec Discord
+            </a>`;
         return;
     }
 
-    // récupérer l'utilisateur
     const user = await fetch("https://discord.com/api/users/@me", {
         headers: { Authorization: `Bearer ${token}` }
     }).then(r => r.json());
@@ -84,11 +84,11 @@ async function checkLogin() {
     userId = user.id;
 
     if (!ADMINS.includes(user.id)) {
-        document.getElementById("admin").innerHTML = `<b style='color:red;font-size:22px;'>⛔ Accès refusé</b><br>Vous n'avez pas la permission.`;
+        document.getElementById("admin").innerHTML = `
+            <b style='color:red;font-size:22px;'>⛔ Accès refusé</b><br>Vous n'avez pas la permission.`;
         return;
     }
 
-    // admin OK → panneau
     document.getElementById("admin").innerHTML = `
         <p style='font-size:20px;margin-bottom:15px;'>Bienvenue <b>${user.username}</b></p>
         <button class="admin-btn" onclick="setMaintenance(true)">Activer maintenance</button>
@@ -108,23 +108,31 @@ async function setMaintenance(state) {
 
 // STATUS
 async function loadStatus() {
+    const box = document.getElementById("statusBox");
+
     try {
         const r = await fetch("https://bumpxbot-status.ilyesquibroute93.workers.dev/status", { cache: "no-store" });
         const data = await r.json();
 
-        const box = document.getElementById("statusBox");
+        // Sécurise les valeurs manquantes
+        const gateway = data.gateway_status ?? "N/A";
+        const shard = data.shard_id ?? "N/A";
+        const ping = data.latency_ms ?? "N/A";
+        const uptime = data.uptime_seconds ?? "0";
+        const heartbeat = data.last_heartbeat_ack ? new Date(data.last_heartbeat_ack).toLocaleString() : "N/A";
+        const maintenance = data.maintenance ? "Oui" : "Non";
 
         // BOT OFFLINE
         if (!data.online) {
             box.textContent = "💥 Oups, il y a un soucis !";
             box.className = "status-box offline";
 
-            document.getElementById("gateway").textContent = "–";
-            document.getElementById("shard").textContent = "–";
-            document.getElementById("ping").textContent = "–";
-            document.getElementById("uptime").textContent = "–";
-            document.getElementById("heartbeat").textContent = "–";
-            document.getElementById("maintenance").textContent = data.maintenance ? "Oui" : "Non";
+            document.getElementById("gateway").textContent = gateway;
+            document.getElementById("shard").textContent = shard;
+            document.getElementById("ping").textContent = ping;
+            document.getElementById("uptime").textContent = uptime;
+            document.getElementById("heartbeat").textContent = heartbeat;
+            document.getElementById("maintenance").textContent = maintenance;
             return;
         }
 
@@ -132,31 +140,29 @@ async function loadStatus() {
         if (data.maintenance) {
             box.textContent = "🟡 Maintenance";
             box.className = "status-box maintenance";
-        } 
-        // BOT EN LIGNE
-        else {
+        } else {
             box.textContent = "🟢 Bot en ligne";
             box.className = "status-box online";
         }
 
-        document.getElementById("gateway").textContent = data.gateway_status;
-        document.getElementById("shard").textContent = data.shard_id;
-        document.getElementById("ping").textContent = data.latency_ms + " ms";
-        document.getElementById("uptime").textContent = data.uptime_seconds + "s";
-        document.getElementById("heartbeat").textContent = new Date(data.last_heartbeat_ack).toLocaleString();
-        document.getElementById("maintenance").textContent = data.maintenance ? "Oui" : "Non";
+        // ON REMPLIT LES DONNÉES
+        document.getElementById("gateway").textContent = gateway;
+        document.getElementById("shard").textContent = shard;
+        document.getElementById("ping").textContent = ping + " ms";
+        document.getElementById("uptime").textContent = uptime + "s";
+        document.getElementById("heartbeat").textContent = heartbeat;
+        document.getElementById("maintenance").textContent = maintenance;
 
-    } catch(e) {
-        const box = document.getElementById("statusBox");
+    } catch (e) {
         box.textContent = "💥 Oups, il y a un soucis !";
         box.className = "status-box offline";
     }
 }
 
-
 setInterval(loadStatus, 5000);
 loadStatus();
 checkLogin();
 </script>
+
 </body>
 </html>
