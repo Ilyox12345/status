@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BumpX — Admin Panel</title>
+
+<style>
+/* GENERAL */
+body {
+    margin: 0;
+    background: #eef1ff;
+    font-family: 'Segoe UI', sans-serif;
+    color: #222;
+    display: flex;
+}
+
+/* SIDEBAR */
+.sidebar {
+    width: 260px;
+    background: #5865F2;
+    height: 100vh;
+    padding: 30px 20px;
+    color: white;
+    position: fixed;
+}
+
+.sidebar h2 {
+    text-align: center;
+    font-size: 28px;
+    margin-bottom: 40px;
+    font-weight: 900;
+}
+
+.sidebar a {
+    display: block;
+    padding: 14px 18px;
+    font-size: 18px;
+    color: white;
+    text-decoration: none;
+    margin: 10px 0;
+    border-radius: 10px;
+    transition: 0.3s;
+}
+
+.sidebar a:hover, .sidebar a.active {
+    background: rgba(255,255,255,0.25);
+}
+
+/* CONTENT */
+.content {
+    margin-left: 260px;
+    padding: 30px;
+    width: calc(100% - 260px);
+}
+
+.title {
+    font-size: 40px;
+    font-weight: 800;
+    margin-bottom: 15px;
+}
+
+.card {
+    background: white;
+    padding: 25px;
+    margin: 20px 0;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.07);
+}
+
+.btn {
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    background: #5865F2;
+    color: white;
+    transition: 0.3s;
+}
+
+.btn:hover {
+    background: #4752C4;
+}
+
+.input {
+    padding: 12px;
+    width: 260px;
+    border-radius: 10px;
+    border: 1px solid #aaa;
+    margin-right: 10px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.table th, .table td {
+    padding: 12px;
+    border-bottom: 1px solid #ddd;
+}
+
+.logout {
+    margin-top: 40px;
+    display: block;
+    text-align: center;
+    padding: 12px 15px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.2);
+    color: white;
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <h2>BumpX Admin</h2>
+
+    <a href="#" class="tab-btn active" data-tab="dashboard">Dashboard</a>
+    <a href="#" class="tab-btn" data-tab="maintenance">Maintenance</a>
+    <a href="#" class="tab-btn" data-tab="bans">Bans</a>
+    <a href="#" class="tab-btn" data-tab="bios">Bios</a>
+    <a href="#" class="tab-btn" data-tab="stats">Stats globales</a>
+
+    <a class="logout" href="#" onclick="logout()">Déconnexion</a>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="tab">
+        <h1 class="title">Dashboard</h1>
+        <div class="card">
+            <p><b>Connecté en tant que :</b> <span id="userName">Chargement...</span></p>
+        </div>
+    </div>
+
+    <!-- MAINTENANCE -->
+    <div id="maintenance" class="tab" style="display:none;">
+        <h1 class="title">Maintenance</h1>
+        <div class="card">
+            <button class="btn" onclick="setMaintenance(true)">Activer maintenance</button>
+            <button class="btn" onclick="setMaintenance(false)">Désactiver maintenance</button>
+        </div>
+    </div>
+
+    <!-- BANS -->
+    <div id="bans" class="tab" style="display:none;">
+        <h1 class="title">Ban System</h1>
+
+        <div class="card">
+            <input class="input" id="banID" placeholder="Server ID">
+            <button class="btn" onclick="ban()">Ban</button>
+        </div>
+
+        <div class="card">
+            <h3>Liste des serveurs bannis</h3>
+            <table class="table" id="banList"></table>
+        </div>
+    </div>
+
+    <!-- BIOS -->
+    <div id="bios" class="tab" style="display:none;">
+        <h1 class="title">Bios</h1>
+
+        <div class="card">
+            <input class="input" id="bioID" placeholder="Server ID">
+            <input class="input" id="bioText" placeholder="Bio">
+            <button class="btn" onclick="addBio()">Ajouter / Modifier</button>
+        </div>
+
+        <div class="card">
+            <h3>Liste des bios</h3>
+            <table class="table" id="bioList"></table>
+        </div>
+    </div>
+
+    <!-- STATS -->
+    <div id="stats" class="tab" style="display:none;">
+        <h1 class="title">Stats Globales</h1>
+        <div class="card" id="statsBox">
+            Chargement...
+        </div>
+    </div>
+
+</div>
+
+<script>
+/* ============================
+   AUTH DISCORD OAUTH2
+============================ */
+
+const ADMINS = ["337868737871085578", "924263589798346762"];
+let token = localStorage.getItem("bx_token");
+let userID = null;
+
+// Redirect OAuth if no token
+async function initAuth() {
+    const url = new URL(window.location.href);
+    const accessToken = url.hash.match(/access_token=([^&]+)/);
+
+    if (!token && !accessToken) {
+        window.location.href =
+            `https://discord.com/api/oauth2/authorize?client_id=1439239509521989745&redirect_uri=${encodeURIComponent(window.location.href)}&response_type=token&scope=identify`;
+        return;
+    }
+
+    // OAuth Discord → get user
+    if (accessToken) {
+        const discordToken = accessToken[1];
+
+        const user = await fetch("https://discord.com/api/users/@me", {
+            headers: { Authorization: `Bearer ${discordToken}` }
+        }).then(r => r.json());
+
+        if (!ADMINS.includes(user.id)) {
+            document.body.innerHTML = "<h1 style='text-align:center;color:red;'>⛔ Accès refusé</h1>";
+            return;
+        }
+
+        userID = user.id;
+
+        // Ask Worker for admin JWT
+        const jwt = await fetch("https://bumpxbot-status.ilyesquibroute93.workers.dev/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: user.id })
+        }).then(r => r.json());
+
+        localStorage.setItem("bx_token", jwt.token);
+        token = jwt.token;
+    }
+
+    document.getElementById("userName").innerText = userID;
+}
+
+/* ============================
+   NAVIGATION
+============================ */
+
+document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.onclick = () => {
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".tab").forEach(tab => tab.style.display = "none");
+
+        btn.classList.add("active");
+        document.getElementById(btn.dataset.tab).style.display = "block";
+
+        if (btn.dataset.tab === "bans") loadBans();
+        if (btn.dataset.tab === "bios") loadBios();
+        if (btn.dataset.tab === "stats") loadStats();
+    };
+});
+
+/* ============================
+   BAN SYSTEM
+============================ */
+async function ban() {
+    const id = document.getElementById("banID").value;
+    if (!id) return alert("ID manquant.");
+
+    await fetch("https://bumpxbot-status.ilyesquibroute93.workers.dev/admin/ban", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ id })
+    });
+
+    loadBans();
+}
+
+async function loadBans() {
+    const list = await fetch(
+        "https://bumpxbot-status.ilyesquibroute93.workers.dev/admin/ban/list"
+    ).then(r => r.json());
+
+    const table = document.getElementById("banList");
+    table.innerHTML =
+        "<tr><th>ID Serveur</th><th>Action</th></tr>" +
+        list.map(id =>
+            `<tr>
+                <td>${id}</td>
+                <td><button class="btn" onclick="unban('${id}')">Unban</button></td>
+            </tr>`
+        ).join("");
+}
+
+async function unban(id) {
+    await fetch("https://bumpxbot-status.ilyesquibroute93.workers.dev/admin/unban", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ id })
+    });
+
+    loadBans();
+}
+
+/* ============================
+   BIO SYSTEM
+============================ */
+async function addBio() {
+    const server_id = document.getElementById("bioID").value;
+    const bio = document.getElementById("bioText").value;
+
+    await fetch("https://bumpxbot-status.ilyesquibroute93.workers.dev/admin/bio/set", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ server_id, bio })
+    });
+
+    loadBios();
+}
+
+async function loadBios() {
+    const bios = await fetch(
+        "https://bumpxbot-status.ilyesquibroute93.workers.dev/admin/bio/list"
+    ).then(r => r.json());
+
+    const table = document.getElementById("bioList");
+    table.innerHTML =
+        "<tr><th>ID Serveur</th><th>Bio</th><th>Action</th></tr>" +
+        Object.entries(bios).map(([id, bio]) =>
+            `<tr>
+                <td>${id}</td>
+                <td>${bio}</td>
+                <td><button class="btn" onclick="removeBio('${id}')">Supprimer</button></td>
+            </tr>`
+        ).join("");
+}
+
+async function removeBio(id) {
+    await fetch("https://bumpxbot-status.ilyesquibroute93.workers.dev/admin/bio/remove", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ server_id: id })
+    });
+
+    loadBios();
+}
+
+/* ============================
+   MAINTENANCE
+============================ */
+async function setMaintenance(state) {
+    await fetch("https://bumpxbot-status.ilyesquibroute93.workers.dev/admin/maintenance", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ maintenance: state })
+    });
+
+    alert("Maintenance mise à jour !");
+}
+
+/* ============================
+   STATS
+============================ */
+async function loadStats() {
+    const stats = await fetch(
+        "https://api.ilyesquibroute93.workers.dev/api/bot/stats"
+    ).catch(()=>null);
+
+    document.getElementById("statsBox").innerHTML = `
+        <b>Serveurs :</b> ${stats?.servers || 0}<br>
+        <b>Utilisateurs :</b> ${stats?.users || 0}<br>
+        <b>Bumps :</b> ${stats?.bumps || 0}
+    `;
+}
+
+/* ============================
+   DECONNECT
+============================ */
+function logout() {
+    localStorage.removeItem("bx_token");
+    location.reload();
+}
+
+initAuth();
+</script>
+
+</body>
+</html>
